@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HomeChart - A Correctly Sized Eye Chart On Your Screen</title>
+<style>
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; background:#f4f1ea; color:#222; line-height:1.5; }
+  .wrap { max-width:800px; margin:0 auto; padding:24px 16px 60px; }
+  h1 { font-size:27px; } h1 span { color:#c0392b; }
+  .sub { color:#666; margin:4px 0 18px; font-size:14px; }
+  .card { background:#fff; border:1px solid #e0dacb; border-radius:14px; padding:16px; margin-bottom:16px; }
+  h2 { font-size:15px; margin-bottom:10px; }
+  .step { display:inline-block; background:#c0392b; color:#fff; border-radius:50%; width:22px; height:22px; text-align:center; font-size:13px; line-height:22px; margin-right:6px; }
+  .cardbox { background:linear-gradient(135deg,#dfe7ef,#b8c6d6); border:2px solid #7a8a9c; border-radius:10px; height:0; margin:10px 0; display:flex; align-items:center; justify-content:center; color:#44566a; font-size:13px; }
+  input[type=range] { width:100%; }
+  input[type=number], select { padding:8px; border:1px solid #cfc8b6; border-radius:8px; font-size:14px; background:#fffef9; }
+  .row { display:flex; gap:12px; flex-wrap:wrap; align-items:center; margin-bottom:8px; }
+  .chart { background:#fff; border:1px solid #ddd; text-align:center; padding:20px 10px; color:#000; }
+  .line { display:flex; align-items:center; justify-content:center; position:relative; margin:0 0 .9em; min-height:1px; }
+  .line .L { font-family:Helvetica,Arial,sans-serif; font-weight:700; letter-spacing:.55em; white-space:nowrap; line-height:1; text-indent:.55em; }
+  .line .tag { position:absolute; left:0; font:11px sans-serif; color:#888; letter-spacing:0; }
+  .note { font-size:12px; color:#666; margin-top:10px; }
+  .out { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px; }
+  .m { background:#f7f4ec; border-radius:10px; padding:10px; } .m .k { font-size:11px; text-transform:uppercase; color:#777; } .m .v { font-size:22px; font-weight:800; }
+  a { color:#c0392b; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Home<span>Chart</span></h1>
+  <div class="sub">A Snellen-style letter chart drawn at the true physical size for your screen and test distance. Screening for curiosity only, not a diagnosis.</div>
+
+  <div class="card">
+    <h2><span class="step">1</span>Calibrate your screen</h2>
+    <div>Hold a bank card or ID card (85.6 mm wide) against the screen. Drag until the box below is exactly as wide as the card.</div>
+    <input type="range" id="cal" min="120" max="700" value="324">
+    <div class="cardbox" id="cbox"><span id="cinfo"></span></div>
+  </div>
+
+  <div class="card">
+    <h2><span class="step">2</span>Choose your distance</h2>
+    <div class="row">
+      <input type="number" id="dist" value="3" min="0.3" step="0.1" style="width:90px">
+      <select id="unit"><option value="m">metres</option><option value="ft">feet</option></select>
+      <span id="dinfo" class="note"></span>
+    </div>
+    <div class="note">Stand or sit exactly this far from the screen with your glasses or contacts if you normally wear them. Cover one eye. Turn the screen brightness up.</div>
+  </div>
+
+  <div class="card">
+    <h2><span class="step">3</span>Read down the chart</h2>
+    <div class="chart" id="chart"></div>
+    <div class="row" style="margin-top:12px">
+      <label>Smallest line you read correctly:
+        <select id="lastline"></select></label>
+    </div>
+    <div class="out" id="res"></div>
+  </div>
+
+  <div class="card">
+    <h2>Reading size calculator</h2>
+    <div class="row"><span>Screen viewing distance</span><input type="number" id="rd" value="50" min="10" style="width:80px"><span>cm, acuity 20/</span><input type="number" id="rn" value="20" min="10" max="200" style="width:70px"></div>
+    <div class="out" id="rres"></div>
+  </div>
+
+  <div class="note">
+    Geometry: a 20/20 letter is 5 arcminutes tall, stroke 1 arcminute; a 20/N letter is 5 x N/20 arcminutes. Height = 2 x distance x tan(angle/2). Screen scale comes from your card width (ISO 7810 ID-1, 85.60 mm). Letters use a common sans font, not licensed Sloan optotypes, so results are approximate. The comfortable reading size uses a 3x threshold rule of thumb. Not medical advice: see an eye care professional for a real exam.
+  </div>
+</div>
+<script src="engine.js"></script>
+<script>
+(function(){
+  var E = HomeChart, $ = function(i){ return document.getElementById(i); };
+  function ppm(){ return E.pxPerMm(+$('cal').value); }
+  function distMm(){ var d = +$('dist').value; return $('unit').value === 'ft' ? d * E.FT_MM : d * 1000; }
+  $('lastline').innerHTML = E.LINES.map(function(n){ return '<option value="'+n+'"'+(n===20?' selected':'')+'>20/'+n+'</option>'; }).join('') + '<option value="999">I could not read the top line</option>';
+  function draw(){
+    var w = +$('cal').value, box = $('cbox'); box.style.width = w+'px'; box.style.paddingBottom = (w*53.98/85.60)+'px';
+    $('cinfo').textContent = w+' px = 85.6 mm  ('+ppm().toFixed(2)+' px/mm)';
+    var d = distMm(); $('dinfo').textContent = '= '+(d/1000).toFixed(2)+' m = '+(d/E.FT_MM).toFixed(1)+' ft';
+    var html = '';
+    E.LINES.forEach(function(n){
+      var hmm = E.letterHeightMm(d, n), px = E.mmToPx(hmm, ppm()), fs = px / 0.72; // cap height of Helvetica ~0.72 em
+      html += '<div class="line" style="height:'+Math.max(px,1)+'px"><span class="tag">20/'+n+'</span><span class="L" style="font-size:'+fs+'px" data-h="'+px.toFixed(2)+'">'+E.lettersForLine(n)+'</span></div>';
+    });
+    $('chart').innerHTML = html;
+    var ln = +$('lastline').value; var smallest = E.letterHeightMm(d, 20);
+    if (ln === 999){ $('res').innerHTML = card('Result', 'worse than 20/200', 'try a shorter distance and see an eye care professional'); }
+    else $('res').innerHTML = card('Line read', '20/'+ln, 'decimal '+E.decimal(ln).toFixed(2)) + card('logMAR', (E.logMAR(ln)>=0?'+':'')+E.logMAR(ln).toFixed(2), '0.00 = 20/20') + card('20/20 letter here', smallest.toFixed(2)+' mm', E.mmToPx(smallest, ppm()).toFixed(1)+' px tall on your screen');
+    var cm = +$('rd').value, n = +$('rn').value, h = E.comfortHeightMm(cm*10, n, 3);
+    $('rres').innerHTML = card('Threshold letter', E.letterHeightMm(cm*10, n).toFixed(2)+' mm', 'smallest you can just read') + card('Comfortable capital height', h.toFixed(2)+' mm', '3x threshold') + card('Text size', E.mmToPx(h, ppm()).toFixed(0)+' px cap height', 'about '+(E.mmToPt(h)/0.72).toFixed(1)+' pt font');
+  }
+  function card(k, v, s){ return '<div class="m"><div class="k">'+k+'</div><div class="v">'+v+'</div><div class="note" style="margin:0">'+s+'</div></div>'; }
+  ['cal','dist','unit','lastline','rd','rn'].forEach(function(i){ $(i).oninput = draw; $(i).onchange = draw; });
+  draw();
+})();
+</script>
+</body>
+</html>
